@@ -41,7 +41,7 @@
       .catch(function () {});
   }
 
-  // 🎯 الدالة العامة اللي الويدجت بينادي عليها
+  // الدالة العامة اللي الويدجت بينادي عليها
   window.e5push_request = function () {
     if (Notification.permission === 'granted') {
       registerAndToken();
@@ -54,8 +54,24 @@
     });
   };
 
-  function initMessaging() {
-    var app = firebase.apps.length ? firebase.app() : firebase.initializeApp(CONFIG);
+  /* ========== الإصلاح: التعايش مع عداد المشاهدات ========== */
+  function getFirebaseApp() {
+    // 1) لو الـ default app موجود استخدمه
+    try {
+      var def = firebase.app();
+      if (def) return def;
+    } catch (e) {}
+    // 2) لو تطبيقنا الخاص اتعمل قبل كده استخدمه
+    try {
+      var own = firebase.app('e5push');
+      if (own) return own;
+    } catch (e) {}
+    // 3) غير كده أنشئ تطبيق باسم خاص بينا — ما يتخانقش مع plus-ui-view-counter
+    return firebase.initializeApp(CONFIG, 'e5push');
+  }
+  /* ========== نهاية الإصلاح ========== */
+
+  function startMessaging(app) {
     messaging = firebase.messaging(app);
 
     messaging.onMessage(function (payload) {
@@ -75,6 +91,18 @@
         registerAndToken();
       }
     }).catch(function () {});
+  }
+
+  function initMessaging() {
+    var app = getFirebaseApp();
+    // حماية: لو القالب محمّل Firebase بدون موديول messaging حمّله إحنا
+    if (typeof firebase.messaging !== 'function') {
+      load('https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js', function () {
+        startMessaging(app);
+      });
+      return;
+    }
+    startMessaging(app);
   }
 
   function load(src, cb) {
