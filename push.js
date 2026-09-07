@@ -16,7 +16,7 @@
   if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return;
   if (location.protocol !== 'https:') return;
 
-  // 🎯 الشرط الوحيد: لو اشترك بالفعل، متظهرش أبداً
+  // 🎯 الشرط الوحيد للاختفاء الدائم: لو اشترك بالفعل
   if (localStorage.getItem('e5push_token')) return;
 
   function saveToken(token) {
@@ -94,6 +94,8 @@
     banner.querySelector('.x').onclick = function (e) {
       e.preventDefault();
       hideBanner();
+      // اختفى للزيارة الحالية بس، يرجع في الزيارة الجاية
+      sessionStorage.setItem('e5push_dismissed', '1');
     };
   }
 
@@ -110,7 +112,7 @@
       if (p === 'granted') {
         registerAndToken();
       } else {
-        // الزائر رفض صراحة: هنحاول تاني كل زيارة لحد ما يشترك
+        // الزائر رفض: أظهر البانر تاني بعد نص ثانية
         setTimeout(showBanner, 500);
       }
     });
@@ -139,9 +141,10 @@
         return;
       }
 
-      // ⏱️ بعد ثانيتين بالظبط: أظهر البانر مباشرة (من غير طلب إذن من المتصفح)
+      // ⏱️ بعد ثانيتين بالظبط: أظهر البانر (لو مش مخبي للزيارة دي)
       setTimeout(function () {
         if (localStorage.getItem('e5push_token')) return;
+        if (sessionStorage.getItem('e5push_dismissed')) return;
         showBanner();
       }, 2000);
     }).catch(function () {});
