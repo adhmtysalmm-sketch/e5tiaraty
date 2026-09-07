@@ -16,56 +16,84 @@
   if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return;
   if (location.protocol !== 'https:') return;
 
-  // لو الزائر رفض قبل كده، متتعبش نفسك
-  if (localStorage.getItem('e5push_denied') === '1') return;
+  // 🎯 الشرط الوحيد: لو اشترك بالفعل، متظهرش أبداً
+  if (localStorage.getItem('e5push_token')) return;
 
   function saveToken(token) {
-    if (!token || localStorage.getItem('e5push_token') === token) return;
+    if (!token) return;
     fetch(DB + '/push_tokens/' + encodeURIComponent(token) + '.json', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token: token, t: Date.now() })
     }).then(function (r) {
-      if (r.ok) localStorage.setItem('e5push_token', token);
+      if (r.ok) {
+        localStorage.setItem('e5push_token', token);
+        hideBanner();
+      }
     }).catch(function () {});
   }
 
-  // Modal يظهر فوري لو المتصفح رفض الطلب التلقائي
-  function showModal() {
-    if (document.getElementById('e5push-modal')) return;
+  function hideBanner() {
+    var b = document.getElementById('e5push-banner');
+    if (!b) return;
+    b.classList.remove('show');
+    setTimeout(function(){ if(b.parentNode) b.parentNode.removeChild(b); }, 400);
+  }
+
+  function showBanner() {
+    if (document.getElementById('e5push-banner')) return;
+    if (localStorage.getItem('e5push_token')) return;
+
     var style = document.createElement('style');
+    style.id = 'e5push-style';
     style.textContent =
-      '#e5push-modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:999999;padding:20px;animation:fadeIn .3s}' +
-      '#e5push-modal .box{background:#fff;border-radius:16px;padding:28px 24px;max-width:380px;width:100%;text-align:center;font-family:system-ui,sans-serif;direction:rtl;box-shadow:0 20px 60px rgba(0,0,0,.3)}' +
-      '#e5push-modal h3{margin:0 0 12px;font-size:20px;color:#1a1a1a}' +
-      '#e5push-modal p{margin:0 0 20px;color:#555;font-size:15px;line-height:1.6}' +
-      '#e5push-modal .btns{display:flex;gap:10px;justify-content:center}' +
-      '#e5push-modal button{flex:1;padding:12px 16px;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit}' +
-      '#e5push-modal .yes{background:#2563eb;color:#fff}' +
-      '#e5push-modal .no{background:#f3f4f6;color:#374151}' +
-      '@keyframes fadeIn{from{opacity:0}to{opacity:1}}';
+      '#e5push-banner{position:fixed;top:16px;left:50%;transform:translateX(-50%) translateY(-150%);width:calc(100% - 32px);max-width:520px;background:var(--contentB,#ffffff);border:1px solid var(--contentL,#e5e7eb);border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.12);padding:16px 20px;font-family:var(--fontB,system-ui,sans-serif);box-sizing:border-box;z-index:2147483647;transition:transform .4s cubic-bezier(.4,0,.2,1);direction:rtl}' +
+      '#e5push-banner.show{transform:translateX(-50%) translateY(0)}' +
+      '#e5push-banner .inner{display:flex;align-items:center;gap:14px;padding-right:28px}' +
+      '#e5push-banner .icon{width:38px;height:38px;flex-shrink:0;display:flex;align-items:center;justify-content:center}' +
+      '#e5push-banner .icon svg{width:32px;height:32px}' +
+      '#e5push-banner .text{flex:1;min-width:0}' +
+      '#e5push-banner .title{font-family:var(--fontH,system-ui,sans-serif);font-size:var(--postF,16px);font-weight:600;color:var(--headC,#111827);line-height:1.4}' +
+      '#e5push-banner .sub{font-size:12px;color:var(--bodyCa,#6b7280);line-height:1.4;margin-top:2px}' +
+      '#e5push-banner .yes{display:inline-flex;align-items:center;justify-content:center;height:38px;padding:0 22px;background:#000;color:#fff;border:none;font-size:13px;font-weight:700;border-radius:999px;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;transition:opacity .2s ease}' +
+      '#e5push-banner .yes:hover{opacity:.85}' +
+      '#e5push-banner .x{position:absolute;top:8px;right:8px;width:24px;height:24px;background:transparent;border:none;cursor:pointer;color:var(--bodyCa,#6b7280);font-size:20px;line-height:1;padding:0;display:flex;align-items:center;justify-content:center;border-radius:50%;transition:background .2s;font-family:inherit}' +
+      '#e5push-banner .x:hover{background:var(--contentL,#e5e7eb)}' +
+      '@media (max-width:500px){#e5push-banner{padding:14px 16px;width:calc(100% - 24px);top:12px}#e5push-banner .inner{gap:10px;padding-right:24px}#e5push-banner .yes{padding:0 16px;height:34px;font-size:12px}#e5push-banner .icon svg{width:28px;height:28px}#e5push-banner .title{font-size:15px}}';
     document.head.appendChild(style);
 
-    var modal = document.createElement('div');
-    modal.id = 'e5push-modal';
-    modal.innerHTML =
-      '<div class="box">' +
-        '<h3>🔔 فعّل الإشعارات</h3>' +
-        '<p>عشان توصلك أحدث المقالات والعروض أول ما تنزل من اختيارتي</p>' +
-        '<div class="btns">' +
-          '<button class="yes">نعم، فعّل</button>' +
-          '<button class="no">لاحقاً</button>' +
+    var banner = document.createElement('div');
+    banner.id = 'e5push-banner';
+    banner.innerHTML =
+      '<button class="x" type="button" aria-label="إغلاق">×</button>' +
+      '<div class="inner">' +
+        '<div class="icon">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+            '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>' +
+            '<path d="M13.73 21a2 2 0 0 1-3.46 0"></path>' +
+          '</svg>' +
         '</div>' +
+        '<div class="text">' +
+          '<div class="title">فعّل الإشعارات</div>' +
+          '<div class="sub">عشان توصلك أحدث المقالات والعروض أول ما تنزل من اختيارتي</div>' +
+        '</div>' +
+        '<button class="yes" type="button">فعّل الآن</button>' +
       '</div>';
-    document.body.appendChild(modal);
+    document.body.appendChild(banner);
 
-    modal.querySelector('.yes').onclick = function () {
-      modal.remove();
+    requestAnimationFrame(function(){
+      requestAnimationFrame(function(){
+        banner.classList.add('show');
+      });
+    });
+
+    banner.querySelector('.yes').onclick = function (e) {
+      e.preventDefault();
       doRequest();
     };
-    modal.querySelector('.no').onclick = function () {
-      modal.remove();
-      localStorage.setItem('e5push_denied', '1');
+    banner.querySelector('.x').onclick = function (e) {
+      e.preventDefault();
+      hideBanner();
     };
   }
 
@@ -82,8 +110,8 @@
       if (p === 'granted') {
         registerAndToken();
       } else {
-        // المستخدم رفض صراحة
-        localStorage.setItem('e5push_denied', '1');
+        // الزائر رفض صراحة: هنحاول تاني كل زيارة لحد ما يشترك
+        setTimeout(showBanner, 500);
       }
     });
   }
@@ -103,28 +131,19 @@
       }
     });
 
-    // سجّل الـ Service Worker أول حاجة
     navigator.serviceWorker.register('/firebase-messaging-sw.js').then(function (reg) {
       swReg = reg;
 
-      // لو الزائر موافق بالفعل، خذ توكن فوراً
       if (Notification.permission === 'granted') {
         registerAndToken();
         return;
       }
 
-      // حاول تطلب الإذن فوراً (بعض المتصفحات هتسمح)
-      Notification.requestPermission().then(function (p) {
-        if (p === 'granted') {
-          registerAndToken();
-        } else if (p === 'denied') {
-          // المتصفح رفض الطلب التلقائي → أظهر modal
-          showModal();
-        }
-        // لو 'default' يعني الزائر لسه ما ردش (نادر)
-      }).catch(function () {
-        showModal();
-      });
+      // ⏱️ بعد ثانيتين بالظبط: أظهر البانر مباشرة (من غير طلب إذن من المتصفح)
+      setTimeout(function () {
+        if (localStorage.getItem('e5push_token')) return;
+        showBanner();
+      }, 2000);
     }).catch(function () {});
   }
 
